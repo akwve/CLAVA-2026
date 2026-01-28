@@ -9,7 +9,7 @@ class Index:
         self.indices = [None] *  table.num_columns
         self.table = table
 
-        # TODO: recheck init
+        # TODO: recheck init... i dont know if i implemented this right bc why was pass here
 
     """
     # returns the location of all records with the given value on column "column"
@@ -20,12 +20,7 @@ class Index:
         if self.indices[column] is None:
             return None
 
-        # get what equals value in the column
-        records = self.indices[column].get(value)
-
-        # TODO: double check if this gets the location of ALL records
-
-        return records
+        return self.indices[column].get(value)
 
     """
     # Returns the RIDs of all records with values in column "column" between "begin" and "end"
@@ -36,20 +31,7 @@ class Index:
         if self.indices[column] is None:
             return None
 
-        # sort the column
-        keys = sorted(self.indices[column].keys())
-
-        # TODO: double check the logic - is sorting viable here
-
-        # empty list to collect all RIDs
-        rids = []
-
-        # get all values within the range
-        for key in keys:
-            if begin <= key <= end:
-                rids.extend(self.indices[column][key])
-
-        return rids
+        return self.indices[column].range(begin, end)
 
     # TODO: double check the optionals logic-wise
 
