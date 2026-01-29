@@ -28,11 +28,17 @@ class Database():
     # Deletes the specified table
     """
     def drop_table(self, name):
-        pass
+        for table in self.tables:
+            if table.name == name:
+                self.tables.remove(table)
+                break
 
     
     """
     # Returns table with the passed name
     """
     def get_table(self, name):
-        pass
+        for table in self.tables:
+        if table.name == name:
+            return table
+    return None
