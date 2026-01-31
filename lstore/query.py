@@ -79,7 +79,16 @@ class Query:
     # Returns False if no record exists in the given range
     """
     def sum(self, start_range, end_range, aggregate_column_index):
-        pass
+        for key in range(start_range, end_range + 1):
+                rids = self.table.index.locate(self.table.key, key)
+                for rid in rids:
+                    record = self.table.read_record(rid)
+                    if record is not None:
+                        total += record.columns[aggregate_column_index]
+                        found = True
+
+        return total if found else False
+            
 
     
     """
@@ -92,7 +101,23 @@ class Query:
     # Returns False if no record exists in the given range
     """
     def sum_version(self, start_range, end_range, aggregate_column_index, relative_version):
-        pass
+        try:
+            total = 0
+            found = False
+
+            for key in range(start_range, end_range + 1):
+                rids = self.table.index.locate(self.table.key, key)
+                for rid in rids:
+                    record = self.table.read_record_version(
+                        rid, relative_version
+                    )
+                    if record is not None:
+                        total += record.columns[aggregate_column_index]
+                        found = True
+
+            return total if found else False
+        except:
+            return False
 
     
     """
