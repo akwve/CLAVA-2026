@@ -44,7 +44,16 @@ class Query:
     # Assume that select will never be called on a key that doesn't exist
     """
     def select(self, search_key, search_key_index, projected_columns_index):
-        pass
+        record = self.table.records[search_key]
+
+        result = []
+        for i in range(self.table.num_columns):
+            if projected_columns_index[i] == 1:
+                result.append(record.columns[i])
+            else:
+                result.append(None)
+
+        return [Record(record.rid, record.key, result)]
 
     
     """
