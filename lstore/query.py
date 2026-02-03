@@ -21,7 +21,14 @@ class Query:
     # Return False if record doesn't exist or is locked due to 2PL
     """
     def delete(self, primary_key):
-        pass
+        # find a record with the provided primary key exist
+        if primary_key not in self.table.page_directory:
+            return False
+        
+        # delete page directory so the record is no longer accessible
+        del self.table.page_directory[primary_key]
+        return True
+        #pass
     
     
     """
@@ -31,7 +38,43 @@ class Query:
     """
     def insert(self, *columns):
         schema_encoding = '0' * self.table.num_columns
-        pass
+        
+        # check if the number of columns aligns with the table
+        if len(columns) != self.table.num_columns:
+            return False
+        
+        # determine the key range of new record
+        
+        # extract key
+        key = columns[self.table.key]
+
+        # check if key already exists in teh page_directory
+        if key in self.table.page_directory:
+            return False
+        
+        # create RID
+        rid = len(self.table.page_directory) + 1
+        
+        # create new record that will be inserted
+        new_record = Record(rid, key, columns, schema_encoding)
+        
+        # check if page is full
+        if not self.table.page_directory[key].has_capacity():
+            # create new page
+            new_page = Page().write() #???
+
+        # insert the record into the page
+
+        # update the base page metadata
+
+        # update the page directory to reflect the new RID of tail records to base record
+        
+        # update index
+
+        # if insertion is successful
+        #return True
+
+        #pass
 
     
     """
@@ -67,6 +110,44 @@ class Query:
     # Returns False if no records exist with given key or if the target record cannot be accessed due to 2PL locking
     """
     def update(self, primary_key, *columns):
+        # check if primary key exists
+        if primary_key not in self.table.page_directory:
+            return False
+        
+        # check if the number of columns aligns with the table
+        if len(columns) != self.table.num_columns:
+            return False
+        
+        # get RID of the target record with key
+
+        # locate the data using page directory
+
+        # fetch the corrensponding base record and its indirection pointer
+
+        # assign a new RID for the tail record
+
+        # write updated value
+
+        # set indirection pointer of new tail record to previous tail record
+
+        # update the base record's indirection pointer to new tail record
+
+        # update a schematic encoding for base and tail records
+        base_schema_list = list(schema_encoding)
+        tail_schema_list = ['0'] * self.table.num_columns
+        for i, val in enumerate(columns):
+            if val is not None:
+                base_schema_list[i] = '1'
+                tail_schema_list[i] = '1'
+        base_schema_encoding = ''.join(base_schema_list)
+        tail_schema_encoding = ''.join(tail_schema_list)
+
+        # update tail page metadata
+
+        #update the page directory to reflect the new RID of tail records
+
+        # set indirection column as new tail RID
+        
         pass
 
     
