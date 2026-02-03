@@ -28,7 +28,15 @@ class Table:
         self.page_directory = {}
         self.index = Index(self)
         self.merge_threshold_pages = 50  # The threshold to trigger a merge
-        pass
+
+        # base pages
+        self.base_page_range = 0
+        self.base_page = 0
+
+        # tail pages
+        self.tail_page_range = 0
+        self.tail_page = 0
+        #pass
 
     def __merge(self):
         print("merge is happening")
