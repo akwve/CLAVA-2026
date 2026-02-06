@@ -59,7 +59,7 @@ class Query:
         new_record = [
             None,  # indirection
             rid, # rid
-            int(time()), # timestamp
+            int(time() * 1000), # timestamp
             int(schema_encoding, 2), # schema encoding
             *columns, # given columns
         ]
@@ -163,7 +163,7 @@ class Query:
         new_tail_record = [
             latest_tail_rid,  # indirection: store previous tail RID
             new_tail_rid,  # rid
-            int(time()),  # timestamp
+            int(time() * 1000),  # timestamp
             int(tail_schema_encoding, 2),  # schema encoding
             *columns,  # given columns: update column with value and non-updated column with None
         ]
