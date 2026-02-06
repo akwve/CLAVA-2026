@@ -55,11 +55,12 @@ class Query:
         rid = self.table.get_unique_rid()
         
         # create new record that will be inserted (metadata + given columns)
+        # all column must be integer
         new_record = [
             None,  # indirection
             rid, # rid
-            time(), # timestamp
-            schema_encoding, # schema encoding
+            int(time()), # timestamp
+            int(schema_encoding, 2), # schema encoding
             *columns, # given columns
         ]
 
@@ -98,8 +99,6 @@ class Query:
         # if insertion is successful
         return True
 
-
-        #pass
 
     
     """
@@ -144,37 +143,62 @@ class Query:
             return False
         
         # get RID of the target record with key
+        base_rid, page_index, offset = self.table.page_directory[primary_key]
 
-        # locate the data using page directory
-
-        # fetch the corrensponding base record and its indirection pointer
+        # fetch the corresponding base record and its indirection pointer
+        base_indirection_pointer = self.table.base_pages[0][page_index] # indirection column = 0
+        latest_tail_rid = base_indirection_pointer.read(offset)
 
         # assign a new RID for the tail record
+        new_tail_rid = self.table.get_unique_rid()
 
-        # write updated value
-
-        # set indirection pointer of new tail record to previous tail record
-
-        # update the base record's indirection pointer to new tail record
-
-        # update a schematic encoding for base and tail records
-        base_schema_list = list(schema_encoding)
+        # update a schematic encoding for tail records
         tail_schema_list = ['0'] * self.table.num_columns
         for i, val in enumerate(columns):
             if val is not None:
-                base_schema_list[i] = '1'
                 tail_schema_list[i] = '1'
-        base_schema_encoding = ''.join(base_schema_list)
         tail_schema_encoding = ''.join(tail_schema_list)
 
-        # update tail page metadata
-
-        #update the page directory to reflect the new RID of tail records
-
-        # set indirection column as new tail RID
+        # create new tail record for updated value
+        new_tail_record = [
+            latest_tail_rid,  # indirection: store previous tail RID
+            new_tail_rid,  # rid
+            int(time()),  # timestamp
+            int(tail_schema_encoding, 2),  # schema encoding
+            *columns,  # given columns: update column with value and non-updated column with None
+        ]
         
+        # write record into tail pages for each column
+        # iterate for each columns
+        for i, record in enumerate(new_tail_record):
+            # skip None value column
+            if record is None:
+                continue  
+            
+            # check if there is tail page for column
+            if self.table.tail_page_range[i] == 0:
+                self.table.tail_pages[i].append(Page())
+                self.table.tail_page_range[i] = 1
 
-        pass
+            # get current tail page
+            current_tail_page = self.table.tail_pages[i][self.table.tail_page_range[i] - 1]
+
+            # check if page still have capacity, if not create a new page
+            if not current_tail_page.has_capacity():
+                self.table.tail_pages[i].append(Page())
+                self.table.tail_page_range[i] += 1
+                # set new page as current tail page
+                current_tail_page = self.table.tail_pages[i][self.table.tail_page_range[i] - 1]
+
+            # make sure write for RID column so offset have value
+            if i == 2:
+                offset = current_tail_page.write(record)
+
+        # update the base record's indirection pointer to new tail record
+        base_indirection_pointer.data[offset * 8:offset * 8 + 8] = new_tail_rid.to_bytes(8, byteorder='little')
+
+        return True
+
 
     
     """
