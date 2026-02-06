@@ -14,11 +14,15 @@ class Page:
         
 
     def write(self, value):
+        # write the value into bytearray and track the number of records stored
         self.num_records += 1
-        # track on bytes
-        self.data[self.num_records * 8 - 8:self.num_records * 8] = value.to_bytes(8)
+        self.data[self.num_records * 8 - 8:self.num_records * 8] = value.to_bytes(8, byteorder='little')
         
         # return the index where the value is stored
         return self.num_records - 1
+    
+    def read(self, index):
+        # retrive the value from bytearray by converting
+        return int.from_bytes(self.data[index * 8:index * 8 + 8], byteorder='little')
 
 
