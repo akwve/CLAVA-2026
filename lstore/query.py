@@ -1,5 +1,7 @@
 from lstore.table import Table, Record
 from lstore.index import Index
+from lstore.page import Page
+from time import time
 
 
 class Query:
@@ -28,7 +30,6 @@ class Query:
         # delete page directory so the record is no longer accessible
         del self.table.page_directory[primary_key]
         return True
-        #pass
     
     
     """
@@ -43,9 +44,7 @@ class Query:
         if len(columns) != self.table.num_columns:
             return False
         
-        # determine the key range of new record
-        
-        # extract key
+        # determine the primary key from list of columns
         key = columns[self.table.key]
 
         # check if key already exists in teh page_directory
@@ -53,26 +52,52 @@ class Query:
             return False
         
         # create RID
-        rid = len(self.table.page_directory) + 1
+        rid = self.table.get_unique_rid()
         
-        # create new record that will be inserted
-        new_record = Record(rid, key, columns, schema_encoding)
+        # create new record that will be inserted (metadata + given columns)
+        new_record = [
+            None,  # indirection
+            rid, # rid
+            time(), # timestamp
+            schema_encoding, # schema encoding
+            *columns, # given columns
+        ]
+
+        # write record into base page for each column
+        # iterate for each columns
+        for i, record in enumerate(new_record):
+            # check if there is base page for the column
+            if self.table.base_page_range[i] == 0:
+                self.table.base_pages[i].append(Page())
+                self.table.base_page_range[i] = 1
+
+            # get current latest base page
+            current_page = self.table.base_pages[i][self.table.base_page_range[i] - 1]
+            
+            # check if page still have capacity, if not create a new page
+            if not current_page.has_capacity():
+                self.table.base_pages[i].append(Page())
+                self.table.base_page_range[i] += 1
+                # set new page as current base page
+                current_page = self.table.base_pages[i][self.table.base_page_range[i] - 1]
+
+            # update num_records in page and get where the record is stored in the page
+            offset = current_page.write(record)
+            
+
+        # update the page directory to reflect the new RID and location
+        # get the index of the key column in the table: metadata + index of key column among given columns
+        key_col_index = 4 + self.table.key
+        # get the page of key column to be stored in page directory
+        page_index = self.table.base_page_range[key_col_index] - 1
+        self.table.page_directory[key] = (rid, page_index, offset)
         
-        # check if page is full
-        if not self.table.page_directory[key].has_capacity():
-            # create new page
-            new_page = Page().write() #???
-
-        # insert the record into the page
-
-        # update the base page metadata
-
-        # update the page directory to reflect the new RID of tail records to base record
+        # update index if applicable
         
-        # update index
-
+        
         # if insertion is successful
-        #return True
+        return True
+
 
         #pass
 
@@ -99,7 +124,7 @@ class Query:
     # Returns a list of Record objects upon success
     # Returns False if record locked by TPL
     # Assume that select will never be called on a key that doesn't exist
-    """
+    """ 
     def select_version(self, search_key, search_key_index, projected_columns_index, relative_version):
         pass
 
@@ -148,6 +173,7 @@ class Query:
 
         # set indirection column as new tail RID
         
+
         pass
 
     
