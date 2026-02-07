@@ -55,7 +55,7 @@ class Table:
         self.base_pages = [[[]] for j in range(self.total_columns)] # store list of base pages for each columns: [column][range_index (16 max)][page_index (512 max)]
 
         # tail pages
-        #self.tail_page_range = [0] * self.total_columns # track range index for each columns
+        self.tail_page_range = [0] * self.total_columns # track range index for each columns
         self.tail_pages = [[] for j in range(self.total_columns)] # store list of tail pages for each columns: [column][page_index]
 
         # count the RID for its uniqueness
