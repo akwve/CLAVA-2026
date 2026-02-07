@@ -24,11 +24,17 @@ class Query:
     """
     def delete(self, primary_key):
         # find a record with the provided primary key exist
-        if primary_key not in self.table.page_directory:
+        if primary_key not in self.table.key_directory:
             return False
         
+        # get corresponding RID
+        rid = self.table.key_directory[primary_key]
+        
         # delete page directory so the record is no longer accessible
-        del self.table.page_directory[primary_key]
+        del self.table.page_directory[rid]
+        # delete key directory to reflect the deletion
+        del self.table.key_directory[primary_key]
+
         return True
     
     
