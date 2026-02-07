@@ -52,12 +52,7 @@ class Query:
             return False
         
         # create RID
-        # update the page directory to reflect the new RID and location
-        # get the index of the key column in the table: metadata + index of key column among given columns
-        
-        # get the page of key column to be stored in page directory
-        # rid -> page_index, list of offset for each column
-        base_rid = (partition_index, offset)
+        base_rid = self.table.get_unique_rid(base=True)
         
         # create new record that will be inserted (metadata + given columns)
         # all column must be integer except meta data column
@@ -103,12 +98,18 @@ class Query:
             if record is not None:
                 offset[i] = current_page.write(record)
             
+
+        # update the page directory to reflect the new RID and location
+        # rid -> page_index, list of offset for each column
+        self.table.page_directory[base_rid] = (partition_index, offset)
         
-        # update index if applicable:jusr primary key for milestone 1
+        # update index if applicable:just primary key for milestone 1
         # index: key -> rid(for each column in list)
-        
-        
-        
+        #self.table.key_directory[key] = base_rid
+        if self.table.index.indices[self.table.key] is not None:
+            index = self.table.index.indices[self.table.key]
+            index.setdefault(key, []).append(base_rid)
+            
         # if insertion is successful
         return True
 
