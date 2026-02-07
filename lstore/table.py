@@ -45,7 +45,7 @@ class Table:
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        self.page_directory = {} # list (page, offset)
+        self.page_directory = {} # rid -> (range_index, page_index, offset)
         self.index = Index(self)
         self.merge_threshold_pages = 50  # The threshold to trigger a merge
         self.total_columns = 4 + num_columns # metadata column + given columns

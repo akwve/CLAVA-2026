@@ -52,7 +52,12 @@ class Query:
             return False
         
         # create RID
-        base_rid = self.table.get_unique_rid(base=True)
+        # update the page directory to reflect the new RID and location
+        # get the index of the key column in the table: metadata + index of key column among given columns
+        
+        # get the page of key column to be stored in page directory
+        # rid -> page_index, list of offset for each column
+        base_rid = (partition_index, offset)
         
         # create new record that will be inserted (metadata + given columns)
         # all column must be integer except meta data column
@@ -98,14 +103,6 @@ class Query:
             if record is not None:
                 offset[i] = current_page.write(record)
             
-
-        # update the page directory to reflect the new RID and location
-        # get the index of the key column in the table: metadata + index of key column among given columns
-        key_col_index = 4 + self.table.key
-        # get the page of key column to be stored in page directory
-        # rid -> page_index, list of offset for each column
-        page_index = len(self.table.base_pages[key_col_index]) - 1
-        self.table.page_directory[base_rid] = (page_index, offset)
         
         # update index if applicable:jusr primary key for milestone 1
         # index: key -> rid(for each column in list)
