@@ -97,7 +97,7 @@ class Query:
             if record is not None:
                 mapping_list.append((partition_index, current_page.write(record)))
             else:
-                mapping_list.append((partition_index, None))
+                mapping_list.append((None, None))
             
 
         # update the page directory to reflect the new RID and location
@@ -227,7 +227,7 @@ class Query:
                 if record is not None:
                     mapping_list.append((page_index, current_tail_page.write(record)))
                 else:
-                    mapping_list.append((page_index, None))
+                    mapping_list.append((None, None))
             
             # update latest tail record
             latest_tail_rid = new_tail_rid
@@ -273,7 +273,7 @@ class Query:
             if record is not None:
                 mapping_list.append((page_index, current_tail_page.write(record)))
             else:
-                mapping_list.append((page_index, None))
+                mapping_list.append((None, None))
 
         # update the base record's indirection pointer to new tail record
         base_indirection_pointer.data[offset * 8:offset * 8 + 8] = new_tail_rid.to_bytes(8, byteorder='little')
