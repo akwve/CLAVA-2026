@@ -52,48 +52,64 @@ class Query:
             return False
         
         # create RID
-        rid = self.table.get_unique_rid()
+        base_rid = self.table.get_unique_rid(base=True)
         
         # create new record that will be inserted (metadata + given columns)
-        # all column must be integer
+        # all column must be integer except meta data column
         new_record = [
-            None,  # indirection
-            rid, # rid
-            int(time() * 1000), # timestamp
-            int(schema_encoding, 2), # schema encoding
+            None,  # indirection: None for no tail record
+            base_rid, # rid
+            time(), # timestamp
+            schema_encoding, # schema encoding
             *columns, # given columns
         ]
+
+        # store list of offset for each column
+        offset = [None] * self.table.total_columns
 
         # write record into base page for each column
         # iterate for each columns
         for i, record in enumerate(new_record):
-            # check if there is base page for the column
-            if self.table.base_page_range[i] == 0:
-                self.table.base_pages[i].append(Page())
-                self.table.base_page_range[i] = 1
+            # get current indexes for this column
+            partition_index = len(self.table.base_pages[i]) - 1
+            current_page_range = self.table.base_pages[i][partition_index]
 
-            # get current latest base page
-            current_page = self.table.base_pages[i][self.table.base_page_range[i] - 1]
+            # check if current page range is empty, add first page
+            if len(current_page_range) == 0:
+                current_page_range.append(Page())
+            
+            # get latest page 
+            current_page = current_page_range[-1]
             
             # check if page still have capacity, if not create a new page
             if not current_page.has_capacity():
-                self.table.base_pages[i].append(Page())
-                self.table.base_page_range[i] += 1
-                # set new page as current base page
-                current_page = self.table.base_pages[i][self.table.base_page_range[i] - 1]
-
+                # check if current page range is full (16 pages max)
+                if len(current_page_range) == 16:
+                    # create new page range
+                    self.table.base_pages[i].append([])
+                    partition_index = len(self.table.base_pages[i]) - 1
+                    current_page_range = self.table.base_pages[i][partition_index]
+                
+                # add new page to current range
+                current_page_range.append(Page())
+                current_page = current_page_range[-1]
+            
             # update num_records in page and get where the record is stored in the page
-            offset = current_page.write(record)
+            if record is not None:
+                offset[i] = current_page.write(record)
             
 
         # update the page directory to reflect the new RID and location
         # get the index of the key column in the table: metadata + index of key column among given columns
         key_col_index = 4 + self.table.key
         # get the page of key column to be stored in page directory
-        page_index = self.table.base_page_range[key_col_index] - 1
-        self.table.page_directory[key] = (rid, page_index, offset)
+        # rid -> page_index, list of offset for each column
+        page_index = len(self.table.base_pages[key_col_index]) - 1
+        self.table.page_directory[base_rid] = (page_index, offset)
         
-        # update index if applicable
+        # update index if applicable:jusr primary key for milestone 1
+        # index: key -> rid(for each column in list)
+        
         
         
         # if insertion is successful
@@ -143,14 +159,14 @@ class Query:
             return False
         
         # get RID of the target record with key
-        base_rid, page_index, offset = self.table.page_directory[primary_key]
+        page_index, offset = self.table.page_directory[primary_key]
 
         # fetch the corresponding base record and its indirection pointer
         base_indirection_pointer = self.table.base_pages[0][page_index] # indirection column = 0
         latest_tail_rid = base_indirection_pointer.read(offset)
 
         # assign a new RID for the tail record
-        new_tail_rid = self.table.get_unique_rid()
+        new_tail_rid = self.table.get_unique_rid(base=False)
 
         # update a schematic encoding for tail records
         tail_schema_list = ['0'] * self.table.num_columns
@@ -159,12 +175,13 @@ class Query:
                 tail_schema_list[i] = '1'
         tail_schema_encoding = ''.join(tail_schema_list)
 
+        # first tail record is the copy of base page of updating columns
         # create new tail record for updated value
         new_tail_record = [
-            latest_tail_rid,  # indirection: store previous tail RID
+            latest_tail_rid if latest_tail_rid is not None else base_rid,  # indirection: store previous tail RID # if not previous, then store base page RID
             new_tail_rid,  # rid
-            int(time() * 1000),  # timestamp
-            int(tail_schema_encoding, 2),  # schema encoding
+            time(),  # timestamp
+            tail_schema_encoding,  # schema encoding
             *columns,  # given columns: update column with value and non-updated column with None
         ]
         
