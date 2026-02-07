@@ -18,7 +18,7 @@ class Index:
 
         # if there is no column
         if index is None:
-            return None
+            return []
 
         return index.get(value, [])
 
@@ -31,11 +31,9 @@ class Index:
         
         # if there is no column
         if self.indices[column] is None:
-            return None
+            return []
 
         return index.range(begin, end)
-
-    # TODO: double check the optionals logic-wise
 
     """
     # optional: Create index on specific column
