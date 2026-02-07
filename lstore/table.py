@@ -21,7 +21,7 @@ class Record:
         # 0: indirection column 
         # base page: stores RID of latest tail record
         # tail page: stores the RID of the previous tail record
-        self.indirection = None
+        self.indirection = 0 # 0 for None
 
         # 1: RID column
         self.rid = rid
@@ -45,7 +45,8 @@ class Table:
         self.name = name
         self.key = key
         self.num_columns = num_columns
-        self.page_directory = {} # rid -> (range_index, page_index, offset)
+        self.page_directory = {} # rid -> (page, offset) # page is base: partition index, tail: page index
+        self.key_directory = {} # primary key -> rid
         self.index = Index(self)
         self.merge_threshold_pages = 50  # The threshold to trigger a merge
         self.total_columns = 4 + num_columns # metadata column + given columns
@@ -55,7 +56,7 @@ class Table:
         self.base_pages = [[[]] for j in range(self.total_columns)] # store list of base pages for each columns: [column][range_index (16 max)][page_index (512 max)]
 
         # tail pages
-        self.tail_page_range = [0] * self.total_columns # track range index for each columns
+        #self.tail_page_range = [0] * self.total_columns # track range index for each columns
         self.tail_pages = [[] for j in range(self.total_columns)] # store list of tail pages for each columns: [column][page_index]
 
         # count the RID for its uniqueness
@@ -70,8 +71,8 @@ class Table:
     def get_unique_rid(self, base=False):
         if base:
             self.rid_count[0] += 1
-            return ('b' + str(self.rid_count[0]))
+            return int('1' + str(self.rid_count[0]))
         else:
             self.rid_count[1] += 1
-            return ('t' + str(self.rid_count[1]))
+            return int('2' + str(self.rid_count[1]))
         

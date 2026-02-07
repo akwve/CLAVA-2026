@@ -57,16 +57,15 @@ class Query:
         # create new record that will be inserted (metadata + given columns)
         # all column must be integer except meta data column
         new_record = [
-            None,  # indirection: None for no tail record
+            0,  # indirection: 0 for no tail record
             base_rid, # rid
-            time(), # timestamp
-            schema_encoding, # schema encoding
+            int(time()*1000), # timestamp
+            int(schema_encoding, 2), # schema encoding
             *columns, # given columns
         ]
-
-        # store list of offset for each column
-        offset = [None] * self.table.total_columns
-
+        
+        # store list for page directory
+        mapping_list = []
         # write record into base page for each column
         # iterate for each columns
         for i, record in enumerate(new_record):
@@ -94,22 +93,26 @@ class Query:
                 current_page_range.append(Page())
                 current_page = current_page_range[-1]
             
-            # update num_records in page and get where the record is stored in the page
+            # create new records and store the info in mapping_list
             if record is not None:
-                offset[i] = current_page.write(record)
+                mapping_list.append((partition_index, current_page.write(record)))
+            else:
+                mapping_list.append((partition_index, None))
             
 
         # update the page directory to reflect the new RID and location
         # rid -> page_index, list of offset for each column
-        self.table.page_directory[base_rid] = (partition_index, offset)
+        self.table.page_directory[base_rid] = mapping_list
         
         # update index if applicable:just primary key for milestone 1
         # index: key -> rid(for each column in list)
-        #self.table.key_directory[key] = base_rid
-        if self.table.index.indices[self.table.key] is not None:
-            index = self.table.index.indices[self.table.key]
-            index.setdefault(key, []).append(base_rid)
-            
+        self.table.key_directory[key] = base_rid
+
+        # not sure if necessary; need to check with Lexi
+        #if self.table.index.indices[self.table.key] is not None:
+        #    index = self.table.index.indices[self.table.key]
+        #    index.setdefault(key, []).append(base_rid)
+
         # if insertion is successful
         return True
 
@@ -149,7 +152,7 @@ class Query:
     """
     def update(self, primary_key, *columns):
         # check if primary key exists
-        if primary_key not in self.table.page_directory:
+        if primary_key not in self.table.key_directory:
             return False
         
         # check if the number of columns aligns with the table
@@ -157,14 +160,13 @@ class Query:
             return False
         
         # get RID of the target record with key
-        page_index, offset = self.table.page_directory[primary_key]
+        base_rid = self.table.key_directory[primary_key]
+        partition_index, offset = self.table.page_directory[base_rid][0] # for indirection column
+        page_index = offset // 511 # each page have 512 records max
 
         # fetch the corresponding base record and its indirection pointer
-        base_indirection_pointer = self.table.base_pages[0][page_index] # indirection column = 0
+        base_indirection_pointer = self.table.base_pages[0][partition_index][page_index] # indirection column = 0
         latest_tail_rid = base_indirection_pointer.read(offset)
-
-        # assign a new RID for the tail record
-        new_tail_rid = self.table.get_unique_rid(base=False)
 
         # update a schematic encoding for tail records
         tail_schema_list = ['0'] * self.table.num_columns
@@ -173,16 +175,78 @@ class Query:
                 tail_schema_list[i] = '1'
         tail_schema_encoding = ''.join(tail_schema_list)
 
+        # create pre tail record if there is no tail record associated with base record yet
+        if latest_tail_rid == 0:
+            # for each given columns see whether 
+            update_columns = [None] * self.table.num_columns
+            for i, val in enumerate(columns):
+                if val is not None:
+                    # fetch the corresponding base record
+                    base_record_loc = self.table.base_pages[i+4][partition_index][page_index]
+                    base_record_value = base_record_loc.read(offset)
+                    update_columns[i] = base_record_value
+
+            # assign a new RID for the tail record
+            new_tail_rid = self.table.get_unique_rid(base=False)
+            
+            # create new tail record that copy the base record
+            # partial tail record with update columns
+            new_tail_record = [
+                base_rid,  # indirection: store base RID
+                new_tail_rid,  # rid
+                int(time()*1000),  # timestamp
+                int(tail_schema_encoding, 2),  # schema encoding
+                *update_columns,  # update columns
+            ]
+            
+            # store list for page directory
+            mapping_list = []
+            # write record into tail pages for each column
+            # iterate for each columns
+            for i, record in enumerate(new_tail_record):
+                # skip None value column
+                if record is None:
+                    continue  
+                
+                # check if there is tail page for column
+                if len(self.table.tail_pages[i]) == 0:
+                    self.table.tail_pages[i].append(Page())
+
+                # get current tail page
+                current_tail_page = self.table.tail_pages[i][-1]
+
+                # check if page still have capacity, if not create a new page
+                if not current_tail_page.has_capacity():
+                    self.table.tail_pages[i].append(Page())
+                    # set new page as current tail page
+                    current_tail_page = self.table.tail_pages[i][-1]
+                
+                # current tail page index
+                page_index = len(self.table.tail_pages[i]) - 1
+                # create new records and store the info in mapping_list
+                if record is not None:
+                    mapping_list.append((page_index, current_tail_page.write(record)))
+                else:
+                    mapping_list.append((page_index, None))
+            
+            # update latest tail record
+            latest_tail_rid = new_tail_rid
+
+        # assign a new RID for the tail record
+        new_tail_rid = self.table.get_unique_rid(base=False)
+
         # first tail record is the copy of base page of updating columns
         # create new tail record for updated value
         new_tail_record = [
-            latest_tail_rid if latest_tail_rid is not None else base_rid,  # indirection: store previous tail RID # if not previous, then store base page RID
+            latest_tail_rid,  # indirection: store previous tail RID
             new_tail_rid,  # rid
-            time(),  # timestamp
-            tail_schema_encoding,  # schema encoding
+            int(time()*1000),  # timestamp
+            int(tail_schema_encoding, 2),  # schema encoding
             *columns,  # given columns: update column with value and non-updated column with None
         ]
         
+        # store list for page directory
+        mapping_list = []
         # write record into tail pages for each column
         # iterate for each columns
         for i, record in enumerate(new_tail_record):
@@ -191,23 +255,25 @@ class Query:
                 continue  
             
             # check if there is tail page for column
-            if self.table.tail_page_range[i] == 0:
+            if len(self.table.tail_pages[i]) == 0:
                 self.table.tail_pages[i].append(Page())
-                self.table.tail_page_range[i] = 1
 
             # get current tail page
-            current_tail_page = self.table.tail_pages[i][self.table.tail_page_range[i] - 1]
+            current_tail_page = self.table.tail_pages[i][-1]
 
             # check if page still have capacity, if not create a new page
             if not current_tail_page.has_capacity():
                 self.table.tail_pages[i].append(Page())
-                self.table.tail_page_range[i] += 1
                 # set new page as current tail page
-                current_tail_page = self.table.tail_pages[i][self.table.tail_page_range[i] - 1]
-
-            # make sure write for RID column so offset have value
-            if i == 2:
-                offset = current_tail_page.write(record)
+                current_tail_page = self.table.tail_pages[i][-1]
+            
+            # current tail page index
+            page_index = len(self.table.tail_pages[i]) - 1
+            # create new records and store the info in mapping_list
+            if record is not None:
+                mapping_list.append((page_index, current_tail_page.write(record)))
+            else:
+                mapping_list.append((page_index, None))
 
         # update the base record's indirection pointer to new tail record
         base_indirection_pointer.data[offset * 8:offset * 8 + 8] = new_tail_rid.to_bytes(8, byteorder='little')
